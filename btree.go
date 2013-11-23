@@ -1,12 +1,11 @@
 package btree
+
 // An MVCC Btree implementation
 
 import (
 	"io"
+	"os"
 )
-
-type Key []byte
-type Value []byte
 
 type BtreeIter interface {
 	HasNext() bool
@@ -22,4 +21,15 @@ type Btree interface {
 	Remove(Key) error
 	Get(Key) (Value, error)
 	Iterator() BtreeIter
+}
+
+type Config struct {
+	kvChunkSize uint32
+	kpChunkSize uint32
+}
+
+type btree struct {
+	file   *os.File
+	offset int64
+	config Config
 }
