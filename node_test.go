@@ -2,21 +2,8 @@ package btree
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
-
-const TEST_FILE = "test.tree"
-
-func initTree() *btree {
-	f, _ := os.OpenFile(TEST_FILE, os.O_CREATE|os.O_RDWR, os.ModePerm)
-	tree := &btree{
-		file:   f,
-		offset: 0,
-	}
-
-	return tree
-}
 
 func TestNodeReadWrite(t *testing.T) {
 	var n node
