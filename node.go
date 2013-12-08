@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
+	"unsafe"
 )
 
 // Node types
@@ -14,10 +15,16 @@ const (
 
 type Key []byte
 type Value []byte
+type DiskPos int64
 
 type kv struct {
 	k Key
 	v Value
+}
+
+func (itm kv) Size() uint32 {
+	sz := unsafe.Sizeof(itm)
+	return uint32(sz)
 }
 
 // Bytes representation of kv
@@ -123,4 +130,17 @@ func (tree *btree) writeNode(n *node) (pos int64, err error) {
 
 	tree.offset = offset
 	return
+}
+
+func v2p(v Value) int64 {
+	var pos int64
+	buf := bytes.NewBuffer(v)
+	binary.Read(buf, binary.LittleEndian, &pos)
+	return pos
+}
+
+func p2v(p int64) Value {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.LittleEndian, p)
+	return Value(buf.Bytes())
 }

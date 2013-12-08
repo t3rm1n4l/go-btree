@@ -32,4 +32,6 @@ type btree struct {
 	file   *os.File
 	offset int64
 	config Config
+	root   *node
+	cmp    func(Key, Key) int
 }
