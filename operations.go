@@ -1,5 +1,9 @@
 package btree
 
+import (
+	"errors"
+)
+
 type node_builder struct {
 	ntype    int8
 	tree     *btree
@@ -123,4 +127,74 @@ func (tree *btree) build(kvs []*kv) error {
 
 	tree.root, err = build_root(&nb)
 	return err
+}
+
+// Query request spec
+type QueryRequest struct {
+	// Sorted keylist
+	Keys []Key
+	// Fetch callback
+	Callback func(itm kv)
+}
+
+// Query api
+func (tree *btree) query(rq *QueryRequest) error {
+	if tree.root == nil {
+		return errors.New("Empty root")
+	}
+
+	return tree.query_node(rq, v2p(tree.root.kvlist[0].v), 0, len(rq.Keys))
+}
+
+func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) error {
+	n, err := tree.readNode(diskPos)
+	if err != nil {
+		return err
+	}
+
+	max := len(n.kvlist)
+	// If it is kpnode, descend to the appropriate node with search subgroup keys
+	if n.ntype == kpnode {
+		for i := 0; start < end && i < max; i++ {
+			cmpkey := n.kvlist[i]
+
+			cmpval := tree.cmp(cmpkey.k, rq.Keys[start])
+			if cmpval >= 0 {
+
+				last := start
+				for last < end && tree.cmp(cmpkey.k, rq.Keys[last]) >= 0 {
+					last++
+				}
+
+				err := tree.query_node(rq, v2p(cmpkey.v), start, last)
+				if err != nil {
+					return err
+				}
+
+				start = last
+			}
+		}
+	}
+
+	// Search for given list of keys in kvnode
+	if n.ntype == kvnode {
+		for i := 0; start < end && i < max; i++ {
+			cmpkey := n.kvlist[i]
+			cmpval := tree.cmp(cmpkey.k, rq.Keys[start])
+
+			switch {
+			case cmpval > 0:
+				start++
+				not_found := kv{rq.Keys[start], Value("")}
+				rq.Callback(not_found)
+				break
+			case cmpval == 0:
+				rq.Callback(*cmpkey)
+				start++
+				break
+			}
+		}
+	}
+
+	return nil
 }
