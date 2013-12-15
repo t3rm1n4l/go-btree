@@ -174,6 +174,12 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 				start = last
 			}
 		}
+
+		for start < end {
+			not_found := kv{rq.Keys[start], Value("")}
+			rq.Callback(not_found)
+			start++
+		}
 	}
 
 	// Search for given list of keys in kvnode
