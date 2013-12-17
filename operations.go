@@ -133,6 +133,9 @@ func (tree *btree) build(kvs []*kv) error {
 type QueryRequest struct {
 	// Sorted keylist
 	Keys []Key
+	// If this is range query
+	Range        bool
+	rangeStarted bool
 	// Fetch callback
 	Callback func(itm kv)
 }
@@ -157,10 +160,9 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 	if n.ntype == kpnode {
 		for i := 0; start < end && i < max; i++ {
 			cmpkey := n.kvlist[i]
-
 			cmpval := tree.cmp(cmpkey.k, rq.Keys[start])
-			if cmpval >= 0 {
-
+			switch {
+			case cmpval >= 0:
 				last := start
 				for last < end && tree.cmp(cmpkey.k, rq.Keys[last]) >= 0 {
 					last++
@@ -172,10 +174,16 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 				}
 
 				start = last
+				break
+			case rq.rangeStarted:
+				err := tree.query_node(rq, v2p(cmpkey.v), 1, 2)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
-		for start < end {
+		for !rq.Range && start < end {
 			not_found := kv{rq.Keys[start], Value("")}
 			rq.Callback(not_found)
 			start++
@@ -184,20 +192,47 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 
 	// Search for given list of keys in kvnode
 	if n.ntype == kvnode {
-		for i := 0; start < end && i < max; i++ {
+		for i := 0; (rq.rangeStarted || start < end) && i < max; i++ {
 			cmpkey := n.kvlist[i]
 			cmpval := tree.cmp(cmpkey.k, rq.Keys[start])
 
 			switch {
 			case cmpval > 0:
 				start++
-				not_found := kv{rq.Keys[start], Value("")}
-				rq.Callback(not_found)
+				switch {
+				case !rq.Range:
+					not_found := kv{rq.Keys[start], Value("")}
+					rq.Callback(not_found)
+					break
+				default:
+					if rq.Range {
+						switch {
+						case rq.rangeStarted:
+							rq.Callback(*cmpkey)
+							rq.rangeStarted = false
+							break
+						default:
+							rq.rangeStarted = true
+						}
+					}
+				}
 				break
 			case cmpval == 0:
 				rq.Callback(*cmpkey)
 				start++
+				if rq.Range {
+					switch {
+					case rq.rangeStarted:
+						rq.rangeStarted = false
+						break
+					default:
+						rq.rangeStarted = true
+					}
+				}
 				break
+
+			case rq.rangeStarted:
+				rq.Callback(*cmpkey)
 			}
 		}
 	}
