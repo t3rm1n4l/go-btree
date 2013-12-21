@@ -38,9 +38,9 @@ func TestSimpleTreeLookup(t *testing.T) {
 		t.Fatal("Invalid root")
 	}
 
-	tree.cmp = func(k1, k2 Key) int {
-		s1 := string(k1)
-		s2 := string(k2)
+	tree.cmp = func(k1, k2 *Key) int {
+		s1 := string(*k1)
+		s2 := string(*k2)
 		i1 := 0
 		i2 := 0
 		fmt.Sscanf(s1, "key_%d", &i1)
@@ -53,9 +53,10 @@ func TestSimpleTreeLookup(t *testing.T) {
 	expected := []bool{true, true, true, true, true, true, true, true, false}
 	received := []kv{}
 
-	keys := []Key{}
+	keys := []*Key{}
 	for i := 0; i < len(key_ids); i++ {
-		keys = append(keys, make_key(key_ids[i]))
+		k := make_key(key_ids[i])
+		keys = append(keys, &k)
 	}
 
 	vals := []Value{}
@@ -85,11 +86,11 @@ func TestSimpleTreeLookup(t *testing.T) {
 	}
 
 	for i := 0; i < len(vals); i++ {
-		if !equals(received[i], kv{keys[i], vals[i]}) {
+		if !equals(received[i], kv{*keys[i], vals[i]}) {
 			t.Errorf("received %s/%s - expected %s/%s\n",
 				string(received[i].k),
 				string(received[i].v),
-				string(keys[i]),
+				string(*keys[i]),
 				string(vals[i]))
 		}
 	}
@@ -112,9 +113,9 @@ func TestSimpleTreeRangeLookup(t *testing.T) {
 		t.Fatal("Invalid root")
 	}
 
-	tree.cmp = func(k1, k2 Key) int {
-		s1 := string(k1)
-		s2 := string(k2)
+	tree.cmp = func(k1, k2 *Key) int {
+		s1 := string(*k1)
+		s2 := string(*k2)
 		i1 := 0
 		i2 := 0
 		fmt.Sscanf(s1, "key_%d", &i1)
@@ -124,9 +125,17 @@ func TestSimpleTreeRangeLookup(t *testing.T) {
 	}
 
 	received := []kv{}
+	k1 := new(Key)
+	*k1 = Key("key_40")
+	k2 := new(Key)
+	*k2 = Key("key_60")
+	k3 := new(Key)
+	*k3 = Key("key_80")
+	k4 := new(Key)
+	*k4 = Key("key_95")
 
 	qreq := &QueryRequest{
-		Keys: []Key{Key("key_40"), Key("key_60"), Key("key_80"), Key("key_95")},
+		Keys: []*Key{k1, k2, k3, k4},
 		Callback: func(itm kv) {
 			received = append(received, itm)
 		},
@@ -171,9 +180,9 @@ func TestSimpleTreeFullLookup(t *testing.T) {
 		t.Fatal("Invalid root")
 	}
 
-	tree.cmp = func(k1, k2 Key) int {
-		s1 := string(k1)
-		s2 := string(k2)
+	tree.cmp = func(k1, k2 *Key) int {
+		s1 := string(*k1)
+		s2 := string(*k2)
 		i1 := 0
 		i2 := 0
 		fmt.Sscanf(s1, "key_%d", &i1)

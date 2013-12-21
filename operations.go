@@ -132,7 +132,7 @@ func (tree *btree) build(kvs []*kv) error {
 // Query request spec
 type QueryRequest struct {
 	// Sorted keylist
-	Keys []Key
+	Keys []*Key
 	// If this is range query
 	Range        bool
 	rangeStarted bool
@@ -163,13 +163,13 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 			cmpkey := n.kvlist[i]
 			cmpval := 0
 			if !rq.All {
-				cmpval = tree.cmp(cmpkey.k, rq.Keys[start])
+				cmpval = tree.cmp(&cmpkey.k, rq.Keys[start])
 			}
 
 			switch {
 			case cmpval >= 0:
 				last := start
-				for last < end && tree.cmp(cmpkey.k, rq.Keys[last]) >= 0 {
+				for last < end && tree.cmp(&cmpkey.k, rq.Keys[last]) >= 0 {
 					last++
 				}
 
@@ -189,7 +189,7 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 		}
 
 		for !rq.Range && start < end {
-			not_found := kv{rq.Keys[start], Value("")}
+			not_found := kv{*rq.Keys[start], Value("")}
 			rq.Callback(not_found)
 			start++
 		}
@@ -201,7 +201,7 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 			cmpkey := n.kvlist[i]
 			cmpval := 0
 			if !rq.All {
-				cmpval = tree.cmp(cmpkey.k, rq.Keys[start])
+				cmpval = tree.cmp(&cmpkey.k, rq.Keys[start])
 			}
 
 			switch {
@@ -209,7 +209,7 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 				start++
 				switch {
 				case !rq.Range:
-					not_found := kv{rq.Keys[start], Value("")}
+					not_found := kv{*rq.Keys[start], Value("")}
 					rq.Callback(not_found)
 					break
 				default:
