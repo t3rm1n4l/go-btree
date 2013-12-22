@@ -164,6 +164,70 @@ func TestSimpleTreeRangeLookup(t *testing.T) {
 	}
 }
 
+func TestSimpleTreeRangeLookup2(t *testing.T) {
+	var n node
+	tree := initTree()
+
+	for i := 0; i < 1000; i++ {
+		itm := new(kv)
+		itm.k = Key(fmt.Sprintf("key_%d", i))
+		itm.v = Value(fmt.Sprintf("val_%d", i))
+		n.kvlist = append(n.kvlist, itm)
+	}
+
+	tree.build(n.kvlist)
+	if tree.root == nil {
+		t.Fatal("Invalid root")
+	}
+
+	tree.cmp = func(k1, k2 *Key) int {
+		s1 := string(*k1)
+		s2 := string(*k2)
+		i1 := 0
+		i2 := 0
+		fmt.Sscanf(s1, "key_%d", &i1)
+		fmt.Sscanf(s2, "key_%d", &i2)
+
+		return i1 - i2
+	}
+
+	received := []kv{}
+	var k1 *Key = nil
+	k2 := new(Key)
+	*k2 = Key("key_100")
+	k3 := new(Key)
+	*k3 = Key("key_900")
+	var k4 *Key = nil
+
+	qreq := &QueryRequest{
+		Keys: []*Key{k1, k2, k3, k4},
+		Callback: func(itm kv) {
+			received = append(received, itm)
+		},
+		Range: true,
+	}
+
+	err := tree.query(qreq)
+	if err != nil {
+		t.Fatal("query returned non-nil error")
+	}
+
+	for i := 0; i <= 100; i++ {
+		itm := kv{make_key(i), make_value(i)}
+		if !equals(itm, received[i]) {
+			t.Errorf("Unexpected key received, %s for %s", string(itm.k), string(received[i].k))
+		}
+	}
+
+	for i := 101; i <= 101+99; i++ {
+		offset := i + 799
+		itm := kv{make_key(offset), make_value(offset)}
+		if !equals(itm, received[i]) {
+			t.Errorf("Unexpected key received, %s for %s", string(itm.k), string(received[i].k))
+		}
+	}
+}
+
 func TestSimpleTreeFullLookup(t *testing.T) {
 	var n node
 	tree := initTree()
