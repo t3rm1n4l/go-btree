@@ -136,6 +136,7 @@ type QueryRequest struct {
 	// If this is range query
 	Range        bool
 	rangeStarted bool
+	noaction     bool
 	// Fetch callback
 	Callback func(itm kv)
 	All      bool
@@ -159,17 +160,29 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 	max := len(n.kvlist)
 	// If it is kpnode, descend to the appropriate node with search subgroup keys
 	if n.ntype == kpnode {
-		for i := 0; (rq.All || start < end) && i < max; i++ {
+		for i := 0; (rq.All || rq.rangeStarted || start < end) && i < max; i++ {
 			cmpkey := n.kvlist[i]
 			cmpval := 0
 			if !rq.All {
-				cmpval = tree.cmp(&cmpkey.k, rq.Keys[start])
+				switch {
+				case rq.Keys[start] == nil:
+					cmpval = -1
+					if !rq.rangeStarted {
+						rq.rangeStarted = true
+						start++
+					}
+					fallthrough
+				default:
+					if rq.Keys[start] != nil {
+						cmpval = tree.cmp(&cmpkey.k, rq.Keys[start])
+					}
+				}
 			}
 
 			switch {
 			case cmpval >= 0:
 				last := start
-				for last < end && tree.cmp(&cmpkey.k, rq.Keys[last]) >= 0 {
+				for last < end && rq.Keys[last] != nil && tree.cmp(&cmpkey.k, rq.Keys[last]) >= 0 {
 					last++
 				}
 
@@ -181,11 +194,14 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 				start = last
 				break
 			case rq.rangeStarted:
+				rq.noaction = true
 				err := tree.query_node(rq, v2p(cmpkey.v), 1, 2)
 				if err != nil {
 					return err
 				}
+				rq.noaction = false
 			}
+
 		}
 
 		for !rq.Range && start < end {
@@ -201,11 +217,16 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 			cmpkey := n.kvlist[i]
 			cmpval := 0
 			if !rq.All {
-				cmpval = tree.cmp(&cmpkey.k, rq.Keys[start])
+				switch {
+				case rq.Keys[start] == nil:
+					cmpval = -1
+				default:
+					cmpval = tree.cmp(&cmpkey.k, rq.Keys[start])
+				}
 			}
 
 			switch {
-			case cmpval > 0:
+			case !rq.noaction && cmpval > 0:
 				start++
 				switch {
 				case !rq.Range:
@@ -216,16 +237,16 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 					if rq.Range {
 						switch {
 						case rq.rangeStarted:
-							rq.Callback(*cmpkey)
 							rq.rangeStarted = false
 							break
 						default:
 							rq.rangeStarted = true
+							rq.Callback(*cmpkey)
 						}
 					}
 				}
 				break
-			case cmpval == 0:
+			case !rq.noaction && cmpval == 0:
 				rq.Callback(*cmpkey)
 				start++
 				if rq.Range {
@@ -241,6 +262,7 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 
 			case rq.rangeStarted:
 				rq.Callback(*cmpkey)
+				break
 			}
 		}
 	}
