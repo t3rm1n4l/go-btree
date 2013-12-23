@@ -258,10 +258,11 @@ func TestSimpleTreeFullLookup(t *testing.T) {
 	received := []kv{}
 
 	qreq := &QueryRequest{
+		Keys: []*Key{nil, nil},
 		Callback: func(itm kv) {
 			received = append(received, itm)
 		},
-		All: true,
+		Range: true,
 	}
 
 	err := tree.query(qreq)

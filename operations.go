@@ -139,7 +139,6 @@ type QueryRequest struct {
 	noaction     bool
 	// Fetch callback
 	Callback func(itm kv)
-	All      bool
 }
 
 // Query api
@@ -160,22 +159,20 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 	max := len(n.kvlist)
 	// If it is kpnode, descend to the appropriate node with search subgroup keys
 	if n.ntype == kpnode {
-		for i := 0; (rq.All || rq.rangeStarted || start < end) && i < max; i++ {
+		for i := 0; (rq.rangeStarted || start < end) && i < max; i++ {
 			cmpkey := n.kvlist[i]
 			cmpval := 0
-			if !rq.All {
-				switch {
-				case rq.Keys[start] == nil:
-					cmpval = -1
-					if !rq.rangeStarted {
-						rq.rangeStarted = true
-						start++
-					}
-					fallthrough
-				default:
-					if rq.Keys[start] != nil {
-						cmpval = tree.cmp(&cmpkey.k, rq.Keys[start])
-					}
+			switch {
+			case rq.Keys[start] == nil:
+				cmpval = -1
+				if !rq.rangeStarted {
+					rq.rangeStarted = true
+					start++
+				}
+				fallthrough
+			default:
+				if rq.Keys[start] != nil {
+					cmpval = tree.cmp(&cmpkey.k, rq.Keys[start])
 				}
 			}
 
@@ -213,16 +210,14 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 
 	// Search for given list of keys in kvnode
 	if n.ntype == kvnode {
-		for i := 0; (rq.rangeStarted || rq.All || start < end) && i < max; i++ {
+		for i := 0; (rq.rangeStarted || start < end) && i < max; i++ {
 			cmpkey := n.kvlist[i]
 			cmpval := 0
-			if !rq.All {
-				switch {
-				case rq.Keys[start] == nil:
-					cmpval = -1
-				default:
-					cmpval = tree.cmp(&cmpkey.k, rq.Keys[start])
-				}
+			switch {
+			case rq.Keys[start] == nil:
+				cmpval = -1
+			default:
+				cmpval = tree.cmp(&cmpkey.k, rq.Keys[start])
 			}
 
 			switch {
