@@ -108,6 +108,7 @@ func (tree *btree) writeNode(n *node) (pos int64, err error) {
 	var written int
 	offset := tree.offset
 	pos = offset
+	tree.file.Seek(pos, 0)
 
 	err = binary.Write(tree.file, binary.LittleEndian, n.ntype)
 	if err != nil {
