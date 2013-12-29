@@ -264,3 +264,111 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 
 	return nil
 }
+
+const (
+	OP_INSERT = iota
+	OP_DELETE
+)
+
+type Operation struct {
+	itm kv
+	op  int
+}
+
+type ModifyRequest struct {
+	ops []Operation
+}
+
+func (tree *btree) modify(rq *ModifyRequest) error {
+	root_builder := new_node_builder(tree, kpnode)
+	err := tree.modify_node(rq, root_builder, v2p(tree.root.kvlist[0].v), 0, len(rq.ops))
+	if err != nil {
+		return err
+	}
+
+	tree.root, err = build_root(root_builder)
+	return err
+}
+
+func (tree *btree) modify_node(rq *ModifyRequest, nb *node_builder, diskPos int64, start, end int) error {
+	n, err := tree.readNode(diskPos)
+	if err != nil {
+		return err
+	}
+
+	cnb := new_node_builder(tree, n.ntype)
+
+	max := len(n.kvlist)
+	i := 0
+
+	if n.ntype == kpnode {
+		for ; start < end && i < max; i++ {
+			cmpkey := n.kvlist[i].k
+			cmpval := tree.cmp(&cmpkey, &rq.ops[start].itm.k)
+			if i == max-1 {
+				err = tree.modify_node(rq, cnb, v2p(n.kvlist[i].v), start, end)
+				if err != nil {
+					return err
+				}
+				break
+			}
+
+			switch {
+			case cmpval < 0:
+				cnb.add(n.kvlist[i])
+			case cmpval >= 0:
+				range_end := start
+				for range_end < end && tree.cmp(&cmpkey, &rq.ops[range_end].itm.k) >= 0 {
+					range_end += 1
+				}
+
+				err = tree.modify_node(rq, cnb, v2p(n.kvlist[i].v), start, range_end)
+				if err != nil {
+					return err
+				}
+				start = range_end
+			}
+		}
+
+		for ; i < max; i++ {
+			cnb.add(n.kvlist[i])
+		}
+	}
+
+	if n.ntype == kvnode {
+		for start < end && i < max {
+			cmpkey := n.kvlist[i].k
+			op := rq.ops[start]
+			cmpval := tree.cmp(&cmpkey, &op.itm.k)
+			switch {
+			case cmpval < 0:
+				cnb.add(n.kvlist[i])
+				i++
+				start++
+				break
+			case cmpval > 0:
+				if op.op == OP_INSERT {
+					cnb.add(&op.itm)
+				}
+				start++
+				break
+			case cmpval == 0:
+				if op.op == OP_INSERT {
+					cnb.add(&op.itm)
+				}
+				start++
+				i++
+				break
+			}
+		}
+
+		for ; start == end && i < max; i++ {
+			cnb.add(n.kvlist[i])
+		}
+	}
+
+	cnb.finish()
+	nb.add_vals(cnb.pointers)
+
+	return err
+}
