@@ -344,7 +344,6 @@ func (tree *btree) modify_node(rq *ModifyRequest, nb *node_builder, diskPos int6
 			case cmpval < 0:
 				cnb.add(n.kvlist[i])
 				i++
-				start++
 				break
 			case cmpval > 0:
 				if op.op == OP_INSERT {
@@ -364,6 +363,13 @@ func (tree *btree) modify_node(rq *ModifyRequest, nb *node_builder, diskPos int6
 
 		for ; start == end && i < max; i++ {
 			cnb.add(n.kvlist[i])
+		}
+
+		for ; start < end; start++ {
+			op := rq.ops[start]
+			if op.op == OP_INSERT {
+				cnb.add(&op.itm)
+			}
 		}
 	}
 
