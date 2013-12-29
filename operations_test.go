@@ -277,3 +277,103 @@ func TestSimpleTreeFullLookup(t *testing.T) {
 		}
 	}
 }
+
+func TestSimpleTreeModify(t *testing.T) {
+	var n node
+	N := 20
+	tree := initTree()
+
+	for i := 0; i < N; i += 2 {
+		itm := new(kv)
+		itm.k = Key(fmt.Sprintf("key_%d", i))
+		itm.v = Value(fmt.Sprintf("val_%d", i))
+		n.kvlist = append(n.kvlist, itm)
+	}
+
+	tree.build(n.kvlist)
+	if tree.root == nil {
+		t.Fatal("Invalid root")
+	}
+
+	tree.cmp = func(k1, k2 *Key) int {
+		s1 := string(*k1)
+		s2 := string(*k2)
+		i1 := 0
+		i2 := 0
+		fmt.Sscanf(s1, "key_%d", &i1)
+		fmt.Sscanf(s2, "key_%d", &i2)
+
+		return i1 - i2
+	}
+
+	rq := &ModifyRequest{
+		ops: []Operation{
+			Operation{itm: kv{make_key(4), make_value(4)}, op: OP_DELETE},
+			Operation{itm: kv{make_key(9), make_value(9)}, op: OP_INSERT},
+			Operation{itm: kv{make_key(12), make_value(100)}, op: OP_INSERT},
+			Operation{itm: kv{make_key(25), make_value(25)}, op: OP_INSERT},
+		},
+	}
+
+	err := tree.modify(rq)
+	if err != nil {
+		t.Fatal("modify returned non-nil error", err)
+	}
+
+	received := []kv{}
+
+	qreq := &QueryRequest{
+		Keys: []*Key{nil, nil},
+		Callback: func(itm kv) {
+			received = append(received, itm)
+		},
+		Range: true,
+	}
+
+	err = tree.query(qreq)
+	if err != nil {
+		t.Fatal("query returned non-nil error", err)
+	}
+
+	if len(received) != N/2+1 {
+		t.Error("Unexpected count after modification", len(received))
+	}
+
+	k1 := make_key(4)
+	k2 := make_key(9)
+	k3 := make_key(12)
+	k4 := make_key(25)
+
+	qreq2 := &QueryRequest{
+		Keys: []*Key{&k1, &k2, &k3, &k4},
+		Callback: func(itm kv) {
+			received = append(received, itm)
+		},
+	}
+
+	received = []kv{}
+	err = tree.query(qreq2)
+	if err != nil {
+		t.Fatal("query returned non-nil error", err)
+	}
+
+	if len(received) != 4 {
+		t.Error("Unexpected count after modification")
+	}
+	if !equals(received[0], kv{k1, Value("")}) {
+		t.Errorf("Deleted key found", string(received[0].v))
+	}
+
+	if !equals(received[1], kv{k2, make_value(9)}) {
+		t.Errorf("Error inserted key with unexpected val")
+	}
+
+	if !equals(received[2], kv{k3, make_value(100)}) {
+		t.Errorf("Error inserted key with unexpected val")
+	}
+
+	if !equals(received[3], kv{k4, make_value(25)}) {
+		t.Errorf("Error inserted key with unexpected val")
+	}
+
+}
