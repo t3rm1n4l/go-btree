@@ -222,7 +222,6 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 
 			switch {
 			case !rq.noaction && cmpval > 0:
-				start++
 				switch {
 				case !rq.Range:
 					not_found := kv{*rq.Keys[start], Value("")}
@@ -240,6 +239,7 @@ func (tree *btree) query_node(rq *QueryRequest, diskPos int64, start, end int) e
 						}
 					}
 				}
+				start++
 				break
 			case !rq.noaction && cmpval == 0:
 				rq.Callback(*cmpkey)
