@@ -380,12 +380,16 @@ func (tree *btree) modify_node(rq *ModifyRequest, nb *node_builder, diskPos int6
 }
 
 func (tree *btree) write_header() error {
+	var err error
 	if tree.root == nil {
 		return errors.New("Btree root is empty")
 	}
-
 	var h header
-	h.rootptr = v2p(tree.root.kvlist[0].v)
+	h.rootptr, err = tree.writeNode(tree.root)
+	if err != nil {
+		errors.New("Unable to write root node")
+	}
+
 	headerpos := tree.offset + (BLOCK_SIZE - (tree.offset % BLOCK_SIZE))
 	tree.file.Seek(headerpos, 0)
 	n, err := tree.file.Write(h.Bytes())
@@ -402,7 +406,7 @@ func (tree *btree) read_header() error {
 	var err error
 	var pos int64
 	var h header
-	var buf []byte
+	buf := make([]byte, HEADER_SIZE)
 	tree.offset, err = tree.file.Seek(0, 2)
 	if err != nil {
 		return err
