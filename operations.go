@@ -378,3 +378,59 @@ func (tree *btree) modify_node(rq *ModifyRequest, nb *node_builder, diskPos int6
 
 	return err
 }
+
+func (tree *btree) write_header() error {
+	if tree.root == nil {
+		return errors.New("Btree root is empty")
+	}
+
+	var h header
+	h.rootptr = v2p(tree.root.kvlist[0].v)
+	headerpos := tree.offset + (BLOCK_SIZE - (tree.offset % BLOCK_SIZE))
+	tree.file.Seek(headerpos, 0)
+	n, err := tree.file.Write(h.Bytes())
+	if err != nil {
+		return err
+	}
+
+	tree.offset = headerpos + int64(n)
+
+	return nil
+}
+
+func (tree *btree) read_header() error {
+	var err error
+	var pos int64
+	var h header
+	var buf []byte
+	tree.offset, err = tree.file.Seek(0, 2)
+	if err != nil {
+		return err
+	}
+
+	pos = tree.offset
+	for {
+		diff := pos % BLOCK_SIZE
+		pos := pos - diff
+		tree.file.Seek(pos, 0)
+		tree.file.Read(buf[0:HEADER_SIZE])
+		err = h.Parse(buf)
+		var root *node
+		if err == nil {
+			root, err = tree.readNode(h.rootptr)
+			if err != nil {
+				return err
+			}
+			tree.root = root
+			break
+		}
+
+		pos--
+
+		if pos < 0 {
+			return errors.New("Btree header not found")
+		}
+	}
+
+	return nil
+}
