@@ -23,6 +23,17 @@ func initTree() *btree {
 	return tree
 }
 
+func openTree() *btree {
+	f, _ := os.OpenFile(TEST_FILE, os.O_RDONLY, os.ModePerm)
+	tree := &btree{
+		file:   f,
+		offset: 0,
+		config: Config{KV_CHUNKSIZE, KP_CHUNKSIZE},
+	}
+
+	return tree
+}
+
 func make_key(id int) Key {
 	return Key(fmt.Sprintf("key_%d", id))
 }

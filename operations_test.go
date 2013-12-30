@@ -377,3 +377,37 @@ func TestSimpleTreeModify(t *testing.T) {
 	}
 
 }
+
+func TestHeaderWrite(t *testing.T) {
+	var n node
+	N := 20
+	tree := initTree()
+
+	for i := 0; i < N; i += 2 {
+		itm := new(kv)
+		itm.k = Key(fmt.Sprintf("key_%d", i))
+		itm.v = Value(fmt.Sprintf("val_%d", i))
+		n.kvlist = append(n.kvlist, itm)
+	}
+
+	tree.build(n.kvlist)
+	if tree.root == nil {
+		t.Fatal("Invalid root")
+	}
+
+	err := tree.write_header()
+	if err != nil {
+		t.Fatalf("Failed header write (%s)", err)
+	}
+
+	tree2 := openTree()
+	err = tree2.read_header()
+	if err != nil {
+		t.Fatal(fmt.Sprintf("Failed header read (%s)", err))
+	}
+
+	if !equals(*tree.root.kvlist[0], *tree2.root.kvlist[0]) {
+		t.Fatalf("root1 key != root2 key (%s != %s)", string(tree.root.kvlist[0].k), string(tree2.root.kvlist[0].k))
+	}
+
+}
