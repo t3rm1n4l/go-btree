@@ -411,3 +411,56 @@ func TestHeaderWrite(t *testing.T) {
 	}
 
 }
+
+func TestCompaction(t *testing.T) {
+	var n node
+	N := 20
+	tree := initTree()
+
+	for i := 0; i < N; i++ {
+		itm := new(kv)
+		itm.k = Key(fmt.Sprintf("key_%d", i))
+		itm.v = Value(fmt.Sprintf("val_%d", i))
+		n.kvlist = append(n.kvlist, itm)
+	}
+
+	tree.cmp = func(k1, k2 *Key) int {
+		s1 := string(*k1)
+		s2 := string(*k2)
+		i1 := 0
+		i2 := 0
+		fmt.Sscanf(s1, "key_%d", &i1)
+		fmt.Sscanf(s2, "key_%d", &i2)
+
+		return i1 - i2
+	}
+
+	tree.build(n.kvlist)
+	if tree.root == nil {
+		t.Fatal("Invalid root")
+	}
+
+	for i := 0; i < 100; i++ {
+		rq := &ModifyRequest{
+			ops: []Operation{
+				Operation{itm: kv{make_key(5), make_value(0)}, op: OP_INSERT},
+			},
+		}
+		err := tree.modify(rq)
+		if err != nil {
+			t.Fatal("modify returned non-nil error", err)
+		}
+	}
+
+	St1, _ := tree.file.Stat()
+	Sz1 := St1.Size()
+	err := tree.compact()
+	if err != nil {
+		t.Fatal("Compaction failed", err)
+	}
+	St2, _ := tree.file.Stat()
+	Sz2 := St2.Size()
+	if Sz2 >= Sz1 {
+		t.Fatalf("Compaction sizes doesn't match %d >= %d", Sz2, Sz1)
+	}
+}
