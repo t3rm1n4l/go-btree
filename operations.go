@@ -333,7 +333,7 @@ func (tree *btree) modify_node(rq *ModifyRequest, nb *node_builder, diskPos int6
 			}
 		}
 
-		for ; i < max; i++ {
+		for i++; i < max; i++ {
 			cnb.add(n.kvlist[i])
 		}
 	}
