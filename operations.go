@@ -90,7 +90,7 @@ func build_root(nb *node_builder) (*node, error) {
 	root_builder := nb
 	nb.finish()
 
-	for len(root_builder.pointers) > 1 {
+	for {
 		tmp_builder := new(node_builder)
 		tmp_builder.ntype = kpnode
 		tmp_builder.tree = nb.tree
@@ -99,9 +99,12 @@ func build_root(nb *node_builder) (*node, error) {
 		if err != nil {
 			return nil, err
 		}
-		tmp_builder.finish()
 
+		tmp_builder.finish()
 		root_builder = tmp_builder
+		if len(root_builder.pointers) == 1 {
+			break
+		}
 	}
 
 	root := new(node)
