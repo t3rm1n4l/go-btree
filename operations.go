@@ -2,6 +2,9 @@ package btree
 
 import (
 	"errors"
+	"io/ioutil"
+	"os"
+	"path"
 )
 
 type node_builder struct {
@@ -440,4 +443,63 @@ func (tree *btree) read_header() error {
 	}
 
 	return nil
+}
+
+func (tree *btree) compact() error {
+	var nb node_builder
+
+	fn := tree.file.Name()
+	dir := path.Dir(fn)
+	tmpfile, err := ioutil.TempFile(dir, "compact")
+	if err != nil {
+		return err
+	}
+
+	ch := make(chan kv)
+
+	allquery := &QueryRequest{
+		Keys: []*Key{nil, nil},
+		Callback: func(itm kv) {
+			ch <- itm
+		},
+		Range: true,
+	}
+
+	go func() {
+		tree.query(allquery)
+		close(ch)
+	}()
+
+	ntree := new(btree)
+	*ntree = *tree
+	ntree.offset = 0
+	ntree.file = tmpfile
+	nb.ntype = kvnode
+	nb.tree = ntree
+
+	for itm := range ch {
+		err := nb.add(&itm)
+		if err != nil {
+			return err
+		}
+	}
+
+	nb.finish()
+	tree.root, err = build_root(&nb)
+	if err != nil {
+		return err
+	}
+
+	tree.file.Close()
+	ntree.file.Close()
+	os.Remove(fn)
+	os.Rename(tmpfile.Name(), fn)
+	tree.file, err = os.OpenFile(fn, os.O_RDWR, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	tree.offset = ntree.offset
+
+	return err
 }
